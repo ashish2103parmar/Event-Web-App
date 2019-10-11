@@ -2,12 +2,16 @@ Demo Web App
 
 * Prerequisites
 1. Set up AWS Account
-2. Set up Environment 
+2. Set up Environment
+
     a. Install AWS CLI, Node.js, React.js and other dependencies
+
     b. Configure aws credentials
+
     c. Setup Node.js Project
-    d. Setup React.js Project
     
+    d. Setup React.js Project
+
 * AWS Resources
 1. Dynamodb Setup
 
