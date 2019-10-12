@@ -10,20 +10,21 @@ Demo Web App
     b. Configure aws credentials
 
     c. Setup Node.js Project
+        Install Graphql, Express
 
     d. Setup React.js Project
 
 * AWS Resources
 1. Dynamodb Setup
 
-    a. Events Table
+    a. Events Table (events-db)
         partition key   : eventid
-        gobal secondary index   : start_timestamp
+        gobal secondary index (start-index) : start_timestamp
         ttl             : expire_timestamp
 
-    b. User/Session Table
-        partition key   : type
-        sort key        : id
+    b. User/Session Table (users-db)
+        partition key   : userid
+        sort key        : dtype (data type)
         ttl             : expire_timestamp
 
 2. S3
