@@ -40,15 +40,15 @@ exports.addUser = ({ username, email, password }, callback) => {
         }, (error) => {
             if (error) {
                 if (error.code === "ConditionalCheckFailedException") {
-                    callback(new CustomException(CustomExceptionCodes.AlreadyExists, "User Already Exists"))
+                    callback({ error: new CustomException(CustomExceptionCodes.AlreadyExists, "User Already Exists") })
                 } else {
-                    callback(new CustomException(CustomExceptionCodes.UnknownError, "Create User Failed for Unknown Reason"))
+                    callback({ error: new CustomException(CustomExceptionCodes.UnknownError, "Create User Failed for Unknown Reason") })
                 }
             } else
-                callback(null, { username, email })
+                callback({ user: { username, email } })
         })
     } else {
-        callback(new CustomException(CustomExceptionCodes.InvalidRequest, "Data Sent is Invalid"))
+        callback({ error: new CustomException(CustomExceptionCodes.InvalidRequest, "Data Sent is Invalid") })
     }
 }
 
@@ -69,7 +69,7 @@ exports.login = ({ email, password }, callback) => {
             TableName: usersDB.name
         }, (error, data) => {
             if (error) {
-                callback(error)
+                callback({ error: new CustomException(CustomExceptionCodes.UnknownError, "Login Failed for Unknown Reason") })
             } else {
                 if (data.Item) {
                     const userInfo = data.Item;
@@ -96,24 +96,26 @@ exports.login = ({ email, password }, callback) => {
                             TableName: usersDB.name
                         }, (error) => {
                             if (error) {
-                                callback(new CustomException(CustomExceptionCodes.UnknownError, "Login Failed for Unknown Reason"))
+                                callback({ error: new CustomException(CustomExceptionCodes.UnknownError, "Login Failed for Unknown Reason") })
                             } else {
-                                callback(null, {
-                                    sessionKey,
-                                    sessionExpire: ttl
+                                callback({
+                                    credentials: {
+                                        sessionKey,
+                                        sessionExpire: ttl
+                                    }
                                 })
                             }
                         })
                     } else {
-                        callback(new CustomException(CustomExceptionCodes.ValidationFailed, "Incorrect Password"))
+                        callback({ error: new CustomException(CustomExceptionCodes.ValidationFailed, "Incorrect Password") })
                     }
                 } else {
-                    callback(new CustomException(CustomExceptionCodes.NotFound, "User Not Found"))
+                    callback({ error: new CustomException(CustomExceptionCodes.NotFound, "User Not Found") })
                 }
             }
         })
     } else {
-        callback(new CustomException(CustomExceptionCodes.InvalidRequest, "Data Sent is Invalid"))
+        callback({ error: new CustomException(CustomExceptionCodes.InvalidRequest, "Data Sent is Invalid") })
     }
 }
 
@@ -156,15 +158,19 @@ exports.checkSession = (sessionKey, callback) => {
         }
     }, (error, result) => {
         if (error) {
-            callback(new CustomException(CustomExceptionCodes.UnknownError, "Session Validation Failed for Unknown Reason"))
+            callback({ error: new CustomException(CustomExceptionCodes.UnknownError, "Session Validation Failed for Unknown Reason") })
         } else {
             if (result.Item) {
-                callback(null, {
-                    email: result.Item.email.S,
-                    username: result.Item.username.S
+                callback({
+                    user: {
+                        email: result.Item.email.S,
+                        username: result.Item.username.S,
+                        admin: result.Item.admin ? result.Item.admin.BOOL : false
+                    },
+                    sessionKey
                 })
             } else {
-                callback(new CustomException(CustomExceptionCodes.ValidationFailed, "Invalid SessionKey"))
+                callback({ error: new CustomException(CustomExceptionCodes.ValidationFailed, "Invalid SessionKey") })
             }
         }
     })
@@ -196,11 +202,13 @@ exports.extendSession = (sessionKey, callback) => {
         UpdateExpression: "SET #t = :t",
     }, (error) => {
         if (error) {
-            callback(new CustomException(CustomExceptionCodes.UnknownError, "Session Validation Failed for Unknown Reason"))
+            callback({ error: new CustomException(CustomExceptionCodes.UnknownError, "Session Validation Failed for Unknown Reason") })
         } else {
-            callback(null, {
-                sessionKey,
-                sessionExpire: ttl
+            callback({
+                credentials: {
+                    sessionKey,
+                    sessionExpire: ttl
+                }
             })
         }
     })

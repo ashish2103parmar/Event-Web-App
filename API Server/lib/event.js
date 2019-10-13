@@ -46,16 +46,52 @@ exports.createEvent = ({ name, description, startTime, endTime, username, email 
             }
         }, (error) => {
             if (error) {
-                callback(new CustomException(CustomExceptionCodes.UnknownError, "Create Event Failed for Unknown Reason"))
+                callback({ error: new CustomException(CustomExceptionCodes.UnknownError, "Create Event Failed for Unknown Reason") })
             } else {
-                callback(null, {
-                    eventID, name, description, startTime, endTime, status: "Pending"
+                callback({
+                    event: {
+                        eventID, name, description, startTime, endTime, status: "Pending"
+                    }
                 })
             }
         })
     } else {
-        callback(new CustomException(CustomExceptionCodes.InvalidRequest, "Data Sent is Invalid"))
+        callback({ error: new CustomException(CustomExceptionCodes.InvalidRequest, "Data Sent is Invalid") })
     }
+}
+
+/**
+ * Get Event Status
+ */
+exports.getStatus = ({ eventID, email }, callback) => {
+    dynamodbClient.getItem({
+        TableName: eventsDB.name,
+        Key: {
+            [eventsDB.key]: {
+                S: eventID
+            }
+        },
+        ExpressionAttributeNames: {
+            "#s": "status"
+        },
+        ProjectionExpression: "#s, email",
+
+    }, (error, data) => {
+        if (error) {
+            callback({ error: new CustomException(CustomExceptionCodes.UnknownError, "List Event Failed for Unknown Reason") })
+        } else {
+            if (data.Item) {
+                const event = data.Item;
+                if (email === event.email.S) {
+                    callback({ status: event.status.S, eventID })
+                } else {
+                    callback({ error: new CustomException(CustomExceptionCodes.AccessDenied, "Access Denied") })
+                }
+            } else {
+                callback({ error: new CustomException(CustomExceptionCodes.NotFound, "Event Not Found") })
+            }
+        }
+    })
 }
 
 /**
@@ -76,25 +112,28 @@ exports.listUserEvents = ({ email, nextToken }, callback) => {
         KeyConditionExpression: "#vi = :v1",
         IndexName: eventsDB.index.email.name,
         TableName: eventsDB.name,
-        ExclusiveStartKey: nextToken,
+        ExclusiveStartKey: nextToken ? {
+            [eventsDB.key]: {
+                S: nextToken
+            }
+        } : undefined,
         Limit: 20,
         ProjectionExpression: eventsDB.key + ", #n, description, start_timestamp, expire_timestamp, #s"
     }, (error, queryResult) => {
         if (error) {
-            callback(new CustomException(CustomExceptionCodes.UnknownError, "List Event Failed for Unknown Reason"))
+            callback({ error: new CustomException(CustomExceptionCodes.UnknownError, "List Event Failed for Unknown Reason") })
         } else {
-            callback(null,
-                {
-                    nextToken: queryResult.LastEvaluatedKey,
-                    list: queryResult.Items.map((value) => ({
-                        eventID: value[eventsDB.key].S,
-                        name: value.name.S,
-                        description: value.description.S,
-                        startTime: parseInt(value.start_timestamp.N),
-                        endTime: parseInt(value.expire_timestamp.N),
-                        status: value.status.S
-                    }))
-                }
+            callback({
+                nextToken: queryResult.LastEvaluatedKey ? queryResult.LastEvaluatedKey[eventsDB.key].S : undefined,
+                list: queryResult.Items.map((value) => ({
+                    eventID: value[eventsDB.key].S,
+                    name: value.name.S,
+                    description: value.description.S,
+                    startTime: parseInt(value.start_timestamp.N),
+                    endTime: parseInt(value.expire_timestamp.N),
+                    status: value.status.S
+                }))
+            }
             )
         }
     })
@@ -107,40 +146,52 @@ exports.listEvents = ({ nextToken, admin }, callback) => {
     dynamodbClient.scan({
         IndexName: eventsDB.index.start.name,
         TableName: eventsDB.name,
-        ExclusiveStartKey: nextToken,
+        ExclusiveStartKey: nextToken ? {
+            [eventsDB.key]: {
+                S: nextToken
+            }
+        } : undefined,
         Limit: 20,
         ExpressionAttributeNames: {
             "#n": "name",
             "#s": "status"
         },
-        ExpressionAttributeValues: {
+        ExpressionAttributeValues: !admin ? {
             ":s": {
                 S: "Success"
             }
-        },
+        }: undefined,
         FilterExpression: !admin ? "#s = :s" : undefined,
         ProjectionExpression: eventsDB.key + ", #n, description, start_timestamp, expire_timestamp, #s, organizer, email"
     }, (error, scanResult) => {
         if (error) {
-            callback(new CustomException(CustomExceptionCodes.UnknownError, "List Event Failed for Unknown Reason"))
+            console.error(error)
+            console.log(nextToken)
+            callback({ error: new CustomException(CustomExceptionCodes.UnknownError, "List Event Failed for Unknown Reason") })
         } else {
-            callback(null,
-                {
-                    nextToken: scanResult.LastEvaluatedKey,
-                    list: scanResult.Items.map((value) => ({
+            var result = {
+                list: scanResult.Items.map((value) => {
+                    var data = {
                         eventID: value[eventsDB.key].S,
                         name: value.name.S,
                         description: value.description.S,
                         startTime: parseInt(value.start_timestamp.N),
                         endTime: parseInt(value.expire_timestamp.N),
-                        organizer: admin ? {
+                    }
+                    if (admin) {
+                        data.organizer = {
                             email: value.email.S,
                             name: value.organizer.S
-                        } : undefined,
-                        status: admin ? value.status.S : undefined
-                    }))
-                }
-            )
+                        }
+                        data.status = value.status.S
+                    }
+                    return data
+                })
+            }
+            if (scanResult.LastEvaluatedKey)
+                result[nextToken] = scanResult.LastEvaluatedKey[eventsDB.key].S
+
+            callback(result)
         }
     })
 }
@@ -189,23 +240,25 @@ exports.updateEvent = ({ eventID, name, description, startTime, endTime, email }
         }, (error, data) => {
             if (error) {
                 if (error.code === "ConditionalCheckFailedException") {
-                    callback(new CustomException(CustomExceptionCodes.AccessDenied, "Access Denied"))
+                    callback({ error: new CustomException(CustomExceptionCodes.AccessDenied, "Access Denied") })
                 } else {
-                    callback(new CustomException(CustomExceptionCodes.UnknownError, "Update Event Failed for Unknown Reason"))
+                    callback({ error: new CustomException(CustomExceptionCodes.UnknownError, "Update Event Failed for Unknown Reason") })
                 }
             } else {
-                callback(null, {
-                    eventID,
-                    name,
-                    description,
-                    startTime,
-                    endTime,
-                    status: "Pending"
+                callback({
+                    event: {
+                        eventID,
+                        name,
+                        description,
+                        startTime,
+                        endTime,
+                        status: "Pending"
+                    }
                 })
             }
         })
     } else {
-        callback(new CustomException(CustomExceptionCodes.InvalidRequest, "Data Sent is Invalid"))
+        callback({ error: new CustomException(CustomExceptionCodes.InvalidRequest, "Data Sent is Invalid") })
     }
 }
 
@@ -234,16 +287,16 @@ exports.updateEventStatus = ({ eventID, status }, callback) => {
             UpdateExpression: "SET #s = :s",
         }, (error, data) => {
             if (error) {
-                callback(new CustomException(CustomExceptionCodes.UnknownError, "Update Event Failed for Unknown Reason"))
+                callback({ error: new CustomException(CustomExceptionCodes.UnknownError, "Update Event Failed for Unknown Reason") })
             } else {
-                callback(null, {
+                callback({
                     eventID,
                     status
                 })
             }
         })
     } else {
-        callback(new CustomException(CustomExceptionCodes.InvalidRequest, "Data Sent is Invalid"))
+        callback({ error: new CustomException(CustomExceptionCodes.InvalidRequest, "Data Sent is Invalid") })
     }
 }
 
@@ -268,22 +321,25 @@ exports.removeEvent = ({ eventID, email, admin }, callback) => {
     }, (error, data) => {
         if (error) {
             if (error.code === "ConditionalCheckFailedException") {
-                callback(new CustomException(CustomExceptionCodes.AccessDenied, "Access Denied"))
+                callback({ error: new CustomException(CustomExceptionCodes.AccessDenied, "Access Denied") })
             } else {
-                callback(new CustomException(CustomExceptionCodes.UnknownError, "Removing Event Failed for Unknown Reason"))
+                callback({ error: new CustomException(CustomExceptionCodes.UnknownError, "Removing Event Failed for Unknown Reason") })
             }
         } else {
             const value = data.Attributes
-            callback(null, {
-                eventID: value[eventsDB.key].S,
-                name: value.name.S,
-                description: value.description.S,
-                startTime: parseInt(value.start_timestamp.N),
-                endTime: parseInt(value.expire_timestamp.N),
-                organizer: admin ? {
-                    email: value.email.S,
-                    name: value.organizer.S
-                } : undefined
+            callback({
+                event: {
+                    eventID: value[eventsDB.key].S,
+                    name: value.name.S,
+                    description: value.description.S,
+                    status: value.status.S,
+                    startTime: parseInt(value.start_timestamp.N),
+                    endTime: parseInt(value.expire_timestamp.N),
+                    organizer: admin ? {
+                        email: value.email.S,
+                        name: value.organizer.S
+                    } : undefined
+                }
             })
         }
     })
