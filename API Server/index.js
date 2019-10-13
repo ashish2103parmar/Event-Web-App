@@ -9,11 +9,38 @@ var app = express();
 /**
  * Health test for ELB
  */
-app.use('/teststatus', (req, res) => {
+app.get('/teststatus', (req, res) => {
     res.send()
 })
 
+/**
+ * Admin Graphql Handler
+ */
+app.post('/graphql/admin', [validateUser, validateAdmin], (req, res) => graphqlHTTP({
 
+})(req, res))
+
+/**
+ * User Graphql Handler
+ */
+app.post('/graphql/user', validateUser, (req, res) => graphqlHTTP({
+
+})(req, res))
+
+/**
+ * Public Graphql Handler
+ */
+app.post('/graphql', graphqlHTTP({
+    
+}))
+
+/**
+ * Error Handling
+ */
+app.use(function (err, req, res, next) {
+    console.error(err.stack)
+    res.status(500).send()
+})
 
 /**
  * Start Server

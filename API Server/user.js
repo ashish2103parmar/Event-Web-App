@@ -1,5 +1,5 @@
 /**
- * Admin Graphql Schema, Functions and Classes
+ * User Graphql Schema, Functions and Classes
  */
 var { buildSchema } = require('graphql');
 
@@ -7,30 +7,30 @@ var { buildSchema } = require('graphql');
  * Schema
  */
 exports.schema = buildSchema(`
-    type Organizer {
-        name: String!
-        email: String!
-    }
-
     type Event {
-        eventID: ID!
+        eventID: ID
         name: String!
         decription: String!
         startTime: Int!
         endTime: Int!
-        organizer: Organizer!
         status: String!
     }
 
     type Query {
         username: String!
         email: String!
-        listEvents(page: Int): [Event]
+        listMyEvents(page: Int): [Event]
+        getStatus(eventID: ID!): String
+    }
+
+    type Response {
+        status: String
+        message: String 
     }
 
     type Mutation {
-        approveEvent(eventID: ID!): Event!
-        rejectEvent(eventID: ID!): Event!
+        createEvent(event: Event!): Event!
+        updateEvent(event: Event!: Event!
         removeEvent(eventID: ID!): Event!
     }
 `);

@@ -20,11 +20,13 @@ Demo Web App
     a. Events Table (events-db)
         partition key   : eventid
         gobal secondary index (start-index) : start_timestamp
+                              (email-index) : email
         ttl             : expire_timestamp
 
     b. User/Session Table (users-db)
         partition key   : userid
         sort key        : dtype (data type)
+        gobal secondary index (email-index) : email
         ttl             : expire_timestamp
 
 2. S3
