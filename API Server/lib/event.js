@@ -158,7 +158,7 @@ exports.listEvents = ({ nextToken, admin }, callback) => {
         },
         ExpressionAttributeValues: !admin ? {
             ":s": {
-                S: "Success"
+                S: "Approved"
             }
         }: undefined,
         FilterExpression: !admin ? "#s = :s" : undefined,
@@ -262,7 +262,7 @@ exports.updateEvent = ({ eventID, name, description, startTime, endTime, email }
     }
 }
 
-const validStatus = ["Pending", "Success", "Rejected"]
+const validStatus = ["Pending", "Approved", "Rejected"]
 
 /**
  * Update Event Status

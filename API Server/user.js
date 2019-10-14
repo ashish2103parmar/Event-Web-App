@@ -98,7 +98,7 @@ exports.root = {
         return new Promise((resolve) => eventFunctions.updateEvent({ eventID, ...event, email: context.user.email }, resolve))
     },
     removeEvent: ({ eventID }, context) => {
-        return new Promise((resolve) => eventFunctions.removeEvent({ eventID, email: context.user.email }, resolve))
+        return new Promise((resolve) => eventFunctions.removeEvent({ eventID, email: context.user.email, admin: context.user.admin }, resolve))
     },
     signout: ({ }, context) => {
         return new Promise((resolve) => logout(context.sessionKey, resolve))

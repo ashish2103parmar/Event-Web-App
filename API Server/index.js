@@ -5,8 +5,19 @@ var express = require("express");
 var graphqlHTTP = require("express-graphql");
 var publicGraphQL = require("./public");
 var userGraphQL = require("./user");
+var cors = require('cors')
+var { checkSession } = require("./lib/user");
+
 var app = express();
-var { checkSession } = require("./lib/user")
+
+/**
+ * Enable Cors
+ */
+app.use(cors({
+    origin: 'http://localhost:3000', // change for Production
+    allowedHeaders: ["X-Session-Key"]
+}))
+
 /**
  * Health test for ELB
  */
@@ -17,7 +28,7 @@ app.get('/teststatus', (req, res) => {
 /**
  * User Graphql Handler
  */
-app.post('/graphql/user', (req, res, next) => {
+app.post('/user/graphql', (req, res, next) => {
     if (req.headers["x-session-key"]) {
         checkSession(req.headers["x-session-key"], (data) => {
             if (data.error) {
