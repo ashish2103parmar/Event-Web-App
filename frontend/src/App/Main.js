@@ -33,7 +33,7 @@ const useStyles = makeStyles(theme => ({
         paddingBottom: theme.spacing(8),
     },
     card: {
-        height: '40vh',
+        height: '300px',
         display: 'flex',
         flexDirection: 'column',
     },
@@ -50,9 +50,12 @@ var publicAPI = new APIRequest("http://localhost:8080/graphql")
 var userAPI = new APIRequest("http://localhost:8080/user/graphql")
 
 var cards = [];
+var lockUpdateMe = false;
+var lockAutoLoad = false
 
 async function loadCards(nextToken, admin) {
-    if (cards.length === 0 || nextToken) {
+    if (!lockAutoLoad || nextToken) {
+        lockAutoLoad = true
         var response
         if (admin) {
 
@@ -102,7 +105,8 @@ function Main(props) {
 
     const [me, setMe] = React.useState()
 
-    if (sessionCredentials && !me && !cards.length) {
+    if (sessionCredentials && !me && !lockUpdateMe) {
+        lockUpdateMe = true
         userAPI.setSessionKey(sessionCredentials);
         userAPI.request(`
             query{
@@ -114,6 +118,7 @@ function Main(props) {
             }
         `).then((response) => response.json()).then((result) => {
             if (result.data) {
+                lockUpdateMe = false
                 setMe(result.data.me)
             } else {
                 localStorage.removeItem("sessionCredentials")
@@ -123,7 +128,9 @@ function Main(props) {
     }
 
     const [nextToken, setNextToken] = React.useState()
-    loadCards().then(setNextToken)
+
+    if (!lockAutoLoad)
+        loadCards().then(setNextToken)
     return (
         <React.Fragment>
             <CssBaseline />
@@ -136,7 +143,7 @@ function Main(props) {
                         My Campus
                     </Typography>
                     {
-                        me ? <Button color="inherit" onClick={() => props.history.push('/dashboard')}>Dashboard</Button> : <Button color="inherit" onClick={() => props.history.push('/signin')}>Login</Button>
+                        me ? <Button color="inherit" onClick={() => props.history.push('/dashboard')}>Dashboard</Button> : <Button color="inherit" onClick={() => props.history.push('/signin')}>Sign In</Button>
                     }
 
                 </Toolbar>
@@ -193,17 +200,18 @@ function Main(props) {
                             </Grid>
                         })}
                         <Grid item xs={12}></Grid>
-                        <Grid item xs={5}></Grid>
-                        {
-                            nextToken ?
-                                <Grid container item xs={2} justify="center">
+                        <Grid item xs={4}></Grid>
+                        <Grid container item xs={4} justify="center">
+                            {
+                                nextToken ?
                                     <Button color="primary" variant="contained" onClick={() => {
                                         loadCards().then(setNextToken)
                                     }}>
                                         Load More
                                 </Button>
-                                </Grid> : "Thats all for now. Come back later"
-                        }
+                                    : "Thats all for now. Come back later"
+                            }
+                        </Grid>
                     </Grid>
                 </Container>
             </main>
