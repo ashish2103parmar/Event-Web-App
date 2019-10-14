@@ -15,7 +15,7 @@ var app = express();
  */
 app.use(cors({
     origin: 'http://localhost:3000', // change for Production
-    allowedHeaders: ["X-Session-Key"]
+    allowedHeaders: ["X-Session-Key", "Content-Type"]
 }))
 
 /**
@@ -28,7 +28,7 @@ app.get('/teststatus', (req, res) => {
 /**
  * User Graphql Handler
  */
-app.post('/user/graphql', (req, res, next) => {
+app.use('/user/graphql', (req, res, next) => {
     if (req.headers["x-session-key"]) {
         checkSession(req.headers["x-session-key"], (data) => {
             if (data.error) {
