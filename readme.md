@@ -44,6 +44,10 @@ Demo Web App
 * Application
 1. API server
     Express + GraphQL
+    
+    Setup:
+        Configure and Zip API Server Folder
+        Put Zip File in S3 and run Code Deploy
 
 2. Front-End
     React.js with Material-ui
