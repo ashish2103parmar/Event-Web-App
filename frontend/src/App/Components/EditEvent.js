@@ -36,21 +36,36 @@ function format2String(date) {
 
 export default function EditEvent(props) {
     const classes = useStyles();
-    // getModalStyle is not a pure function, we roll the style only on the first render
-    /*
-    fileName As String
-        Public Property fromDate As Date
-        Public Property toDate As Date
-        Public Property info As String
-    */
+
     const [values, setValues] = React.useState({
         open: false,
         event: {
+            eventID: null,
+            name: "",
+            startTime: "",
+            endTime: "",
+            description: ""
         }
     });
 
     props.loadCallback((event) => {
-        setValues({ event, open: true })
+        if (event) {
+            var formatEvent = { ...event }
+            formatEvent.startTime = format2String(new Date(formatEvent.startTime * 1000))
+            formatEvent.endTime = format2String(new Date(formatEvent.endTime * 1000))
+            setValues({ event: formatEvent, open: true })
+        } else {
+            setValues({
+                event: {
+                    eventID: null,
+                    name: "",
+                    startTime: "",
+                    endTime: "",
+                    description: ""
+                },
+                open: true
+            })
+        }
     })
 
     const handleChange = name => event => {
@@ -64,13 +79,18 @@ export default function EditEvent(props) {
 
                     <form className={classes.container} autoComplete="off" onSubmit={(event) => {
                         event.preventDefault();
-                        console.log(values.event)
+                        var eventData = values.event
+                        eventData.startTime = new Date(eventData.startTime).getTime() / 1000
+                        eventData.endTime = new Date(eventData.endTime).getTime() / 1000
                         if (props.onSubmit) {
-                            props.onSubmit(values.event)
+                            props.onSubmit(eventData)
                         }
+                        setValues({
+                            ...values,
+                            open: false
+                        })
                     }}>
                         <Container fixed>
-
                             <Typography className={classes.header} variant="h5" component="h2">
                                 {values.event.eventID ? "Edit Event" : "New Event"}
                             </Typography>
@@ -78,7 +98,6 @@ export default function EditEvent(props) {
                                 <Grid item xs={12}>
                                     <TextField
                                         label="Name"
-                                        className={classes.textField}
                                         value={values.event.name}
                                         onChange={handleChange('name')}
                                         margin="normal"
@@ -86,32 +105,39 @@ export default function EditEvent(props) {
                                             shrink: true,
                                         }}
                                         fullWidth
+                                        required
                                     />
                                 </Grid>
                                 <Grid item xs={6}>
                                     <TextField
                                         label="Start Time"
                                         type="datetime-local"
-                                        className={classes.textField}
-                                        defaultValue={format2String(new Date(values.event.startTime ? values.event.startTime * 1000 : null))}
+                                        inputProps={{
+                                            min: format2String(new Date())
+                                        }}
+                                        defaultValue={values.event.startTime}
                                         onChange={handleChange('startTime')}
                                         InputLabelProps={{
                                             shrink: true,
                                         }}
                                         fullWidth
+                                        required
                                     />
                                 </Grid>
                                 <Grid item xs={6}>
                                     <TextField
                                         label="End Time"
                                         type="datetime-local"
+                                        inputProps={{
+                                            min: values.event.startTime
+                                        }}
                                         value={values.event.endTime}
                                         onChange={handleChange('endTime')}
-                                        className={classes.textField}
                                         InputLabelProps={{
                                             shrink: true,
                                         }}
                                         fullWidth
+                                        required
                                     />
                                 </Grid>
                                 <Grid item xs={12}>
@@ -120,10 +146,10 @@ export default function EditEvent(props) {
                                         type="text"
                                         multiline
                                         rows={6}
-                                        className={classes.textField}
                                         value={values.event.description}
                                         onChange={handleChange('description')}
                                         fullWidth
+                                        required
                                     />
                                 </Grid>
                                 <Grid item xs={12}>
@@ -131,7 +157,6 @@ export default function EditEvent(props) {
                                         <Button type="submit" color="primary">Submit</Button>
                                         <Button color="secondary" onClick={() => {
                                             setValues({ ...values, open: false })
-                                            props.onClose()
                                         }}>Cancel</Button>
                                     </ButtonGroup>
                                 </Grid>

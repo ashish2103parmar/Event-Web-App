@@ -3,7 +3,6 @@ import AppBar from '@material-ui/core/AppBar';
 import Button from '@material-ui/core/Button';
 import EventIcon from '@material-ui/icons/Event';
 import Card from '@material-ui/core/Card';
-import CardActions from '@material-ui/core/CardActions';
 import CardContent from '@material-ui/core/CardContent';
 import CssBaseline from '@material-ui/core/CssBaseline';
 import Grid from '@material-ui/core/Grid';
@@ -16,6 +15,11 @@ import Copyright from './Components/Copyright';
 import IconButton from '@material-ui/core/IconButton';
 
 import APIRequest from './js/APIRequest';
+import { ButtonGroup, CardHeader, Divider } from '@material-ui/core';
+
+import RemoveIcon from '@material-ui/icons/Delete'
+import ApproveIcon from '@material-ui/icons/Done'
+import RejectIcon from '@material-ui/icons/Clear'
 
 const useStyles = makeStyles(theme => ({
     title: {
@@ -33,7 +37,7 @@ const useStyles = makeStyles(theme => ({
         paddingBottom: theme.spacing(8),
     },
     card: {
-        height: '300px',
+        height: '100%',
         display: 'flex',
         flexDirection: 'column',
     },
@@ -50,15 +54,35 @@ var publicAPI = new APIRequest("http://localhost:8080/graphql")
 var userAPI = new APIRequest("http://localhost:8080/user/graphql")
 
 var cards = [];
-var lockUpdateMe = false;
 var lockAutoLoad = false
 
-async function loadCards(nextToken, admin) {
+async function loadCards(nextToken, me) {
     if (!lockAutoLoad || nextToken) {
         lockAutoLoad = true
         var response
-        if (admin) {
-
+        if (me ? me.admin : false) {
+            response = await userAPI.request(`
+            query GetCards($nextToken: String) {
+                    listEvents(nextToken: $nextToken) { 
+                        error { 
+                            code 
+                            msg 
+                        } 
+                        nextToken 
+                        list { 
+                            eventID
+                            name
+                            description
+                            startTime
+                            endTime
+                            organizer {
+                                name
+                                email
+                            }
+                            status
+                        } 
+                    } 
+            }`, { nextToken }).then((response) => response.json())
         } else {
             response = await publicAPI.request(`
             query GetCards($nextToken: String) {
@@ -79,6 +103,7 @@ async function loadCards(nextToken, admin) {
             }`, { nextToken }).then((response) => response.json())
         }
         const data = response.data
+        console.log(data)
         if (data) {
             if (data.listEvents.error) {
                 console.error(data.listEvents.error.msg)
@@ -93,9 +118,14 @@ async function loadCards(nextToken, admin) {
     return null
 }
 
+function zeroPad(num, places) {
+    var zero = places - num.toString().length + 1;
+    return Array(+(zero > 0 && zero)).join("0") + num;
+}
+
 function formatDate(timeStamp) {
     const date = new Date(timeStamp * 1000)
-    return date.getDate() + "/" + (date.getMonth() + 1) + "/" + date.getFullYear() + " " + date.getHours() + ":" + date.getMinutes()
+    return zeroPad(date.getDate(), 2) + "/" + zeroPad(date.getMonth() + 1, 2) + "/" + date.getFullYear() + " " + zeroPad(date.getHours(), 2) + ":" + zeroPad(date.getMinutes(), 2)
 }
 
 function Main(props) {
@@ -104,11 +134,13 @@ function Main(props) {
     const sessionCredentials = JSON.parse(localStorage.getItem("sessionCredentials"))
 
     const [me, setMe] = React.useState()
+    const [nextToken, setNextToken] = React.useState()
+    const [refresh, setRefresh] = React.useState(0)
 
-    if (sessionCredentials && !me && !lockUpdateMe) {
-        lockUpdateMe = true
+    if (!lockAutoLoad) {
         userAPI.setSessionKey(sessionCredentials);
-        userAPI.request(`
+        if (sessionCredentials) {
+            userAPI.request(`
             query{
                 me {
                     username
@@ -117,20 +149,19 @@ function Main(props) {
                 }
             }
         `).then((response) => response.json()).then((result) => {
-            if (result.data) {
-                lockUpdateMe = false
-                setMe(result.data.me)
-            } else {
-                localStorage.removeItem("sessionCredentials")
-                console.error(result)
-            }
-        })
+                if (result.data) {
+                    loadCards(nextToken, result.data.me).then(setNextToken)
+                    setMe(result.data.me)
+                } else {
+                    localStorage.removeItem("sessionCredentials")
+                    console.error(result)
+                }
+            })
+        } else {
+            loadCards(nextToken, me).then(setNextToken)
+        }
     }
 
-    const [nextToken, setNextToken] = React.useState()
-
-    if (!lockAutoLoad)
-        loadCards().then(setNextToken)
     return (
         <React.Fragment>
             <CssBaseline />
@@ -180,22 +211,138 @@ function Main(props) {
                         {cards.map((card, idx) => {
                             return <Grid item key={idx} xs={12} sm={6} md={4}>
                                 <Card className={classes.card}>
+                                    {
+                                        me ? me.admin &&
+                                            <React.Fragment>
+                                                <CardHeader title={card.status}
+                                                    titleTypographyProps={{
+                                                        variant: "h6", component: "h5"
+                                                    }}
+                                                    action={
+                                                        <ButtonGroup>
+                                                            {
+                                                                card.status === "Pending" &&
+                                                                <IconButton onClick={() => {
+                                                                    userAPI.request(`
+                                                                        mutation UpdateEventStatus ($eventID: ID!, $status: String!) {
+                                                                            updateEventStatus(eventID: $eventID, status: $status) {
+                                                                                error {
+                                                                                    code
+                                                                                    msg
+                                                                                }
+                                                                                eventID
+                                                                                status
+                                                                            }
+                                                                        }
+                                                                    `, {
+                                                                        eventID: card.eventID,
+                                                                        status: "Approved"
+                                                                    }).then(r => r.json()).then(j => {
+                                                                        if (j.data) {
+                                                                            if (j.data.updateEventStatus.error) {
+                                                                                console.error(j.data.updateEventStatus.error.msg)
+                                                                            } else {
+                                                                                cards[idx].status = j.data.updateEventStatus.status
+                                                                                setRefresh(refresh + 1)
+                                                                            }
+                                                                        } else {
+                                                                            console.error(j)
+                                                                            alert("Some thing went wrong")
+                                                                        }
+                                                                    }).catch((error) => {
+                                                                        console.error(error)
+                                                                    })
+                                                                }}>
+                                                                    <ApproveIcon />
+                                                                </IconButton>
+                                                            }
+                                                            {
+                                                                card.status === "Pending" &&
+                                                                <IconButton onClick={() => {
+                                                                    userAPI.request(`
+                                                                        mutation UpdateEventStatus ($eventID: ID!, $status: String!) {
+                                                                            updateEventStatus(eventID: $eventID, status: $status) {
+                                                                                error {
+                                                                                    code
+                                                                                    msg
+                                                                                }
+                                                                                eventID
+                                                                                status
+                                                                            }
+                                                                        }
+                                                                    `, {
+                                                                        eventID: card.eventID,
+                                                                        status: "Rejected"
+                                                                    }).then(r => r.json()).then(j => {
+                                                                        if (j.data) {
+                                                                            if (j.data.updateEventStatus.error) {
+                                                                                console.error(j.data.updateEventStatus.error.msg)
+                                                                            } else {
+                                                                                cards[idx].status = j.data.updateEventStatus.status
+                                                                                setRefresh(refresh + 1)
+                                                                            }
+                                                                        } else {
+                                                                            console.error(j)
+                                                                            alert("Some thing went wrong")
+                                                                        }
+                                                                    }).catch((error) => {
+                                                                        console.error(error)
+                                                                    })
+                                                                }}>
+                                                                    <RejectIcon />
+                                                                </IconButton>
+                                                            }
+                                                            <IconButton onClick={() => {
+                                                                userAPI.request(`
+                                                                    mutation RemoveEvent ($eventID: ID!) {
+                                                                        removeEvent(eventID: $eventID) {
+                                                                            error {
+                                                                                code
+                                                                                msg
+                                                                            }
+                                                                            event {
+                                                                                eventID
+                                                                            }
+                                                                        }
+                                                                    }
+                                                                `, {
+                                                                    eventID: card.eventID
+                                                                }).then(r => r.json()).then(j => {
+                                                                    if (j.data) {
+                                                                        if (j.data.removeEvent.error) {
+                                                                            console.error(j.data.removeEvent.error.msg)
+                                                                        } else {
+                                                                            var idx = cards.findIndex(card => (card.eventID === j.data.removeEvent.event.eventID));
+                                                                            cards.splice(idx, 1)
+                                                                            setRefresh(refresh + 1)
+                                                                        }
+                                                                    } else {
+                                                                        console.error(j)
+                                                                        alert("Some thing went wrong")
+                                                                    }
+                                                                }).catch((error) => {
+                                                                    console.error(error)
+                                                                })
+                                                            }}>
+                                                                <RemoveIcon />
+                                                            </IconButton>
+                                                        </ButtonGroup>
+                                                    }
+                                                />
+                                                <Divider />
+                                            </React.Fragment> : null
+                                    }
                                     <CardContent className={classes.cardContent}>
                                         <Typography gutterBottom variant="h5" component="h2">
                                             {card.name ? card.name : "Sometihings not right"}
                                         </Typography>
                                         <Typography gutterBottom variant="subtitle1" color="textSecondary">
-                                            {formatDate(card.startTime)}
+                                            {formatDate(card.startTime)} - {formatDate(card.endTime)}
                                         </Typography>
                                         <Typography>
-                                            {card.description.length > 50 ? card.description.substring(0, 50) + "..." : card.description}
+                                            {card.description}
                                         </Typography>
                                     </CardContent>
-                                    <CardActions>
-                                        <Button size="small" color="primary">
-                                            Know More
-                                        </Button>
-                                    </CardActions>
                                 </Card>
                             </Grid>
                         })}

@@ -12,10 +12,12 @@ import Typography from '@material-ui/core/Typography';
 import { makeStyles } from '@material-ui/core/styles';
 import Container from '@material-ui/core/Container';
 import IconButton from '@material-ui/core/IconButton';
-
+import SyncIcon from '@material-ui/icons/Loop';
 import Copyright from './Components/Copyright';
 import APIRequest from './js/APIRequest';
 import EditEvent from './Components/EditEvent';
+import { CardHeader, Divider, ButtonGroup } from '@material-ui/core';
+import RemoveIcon from '@material-ui/icons/Delete'
 
 const useStyles = makeStyles(theme => ({
     title: {
@@ -33,7 +35,7 @@ const useStyles = makeStyles(theme => ({
         paddingBottom: theme.spacing(8),
     },
     card: {
-        height: '300px',
+        height: '100%',
         display: 'flex',
         flexDirection: 'column',
     },
@@ -91,7 +93,6 @@ async function loadCards(nextToken) {
     return null
 }
 
-
 function updateMe(callback) {
     if (!lockUpdateMe) {
         lockUpdateMe = true
@@ -115,9 +116,14 @@ function updateMe(callback) {
     }
 }
 
+function zeroPad(num, places) {
+    var zero = places - num.toString().length + 1;
+    return Array(+(zero > 0 && zero)).join("0") + num;
+}
+
 function formatDate(timeStamp) {
     const date = new Date(timeStamp * 1000)
-    return date.getDate() + "/" + (date.getMonth() + 1) + "/" + date.getFullYear() + " " + date.getHours() + ":" + date.getMinutes()
+    return zeroPad(date.getDate(), 2) + "/" + zeroPad(date.getMonth() + 1, 2) + "/" + date.getFullYear() + " " + zeroPad(date.getHours(), 2) + ":" + zeroPad(date.getMinutes(), 2)
 }
 
 
@@ -133,12 +139,12 @@ function Main(props) {
     }
 
     const [state, setState] = React.useState({
-        me: null, nextToken: null
+        me: null, nextToken: null, refresh: 0
     })
 
     var editEvent = null;
 
-    const { me, nextToken } = state
+    const { me, nextToken, refresh } = state
 
     const updateState = (key) => (value) => {
         setState({ ...state, [key]: value })
@@ -177,7 +183,7 @@ function Main(props) {
                                     alert(resp.data.signout.msg)
                                     console.error(resp.data.signout)
                                 } else {
-                                    props.history.push("/")
+                                    window.location.reload()
                                 }
                             } else {
                                 console.error(resp)
@@ -216,15 +222,90 @@ function Main(props) {
                         {cards.map((card, idx) => {
                             return <Grid item key={idx} xs={12} sm={6} md={4}>
                                 <Card className={classes.card}>
+                                    <CardHeader title={card.status}
+                                        titleTypographyProps={{
+                                            variant: "h6", component: "h5"
+                                        }}
+                                        action={
+                                            <ButtonGroup>
+                                                <IconButton onClick={() => {
+                                                    userAPI.request(`
+                                                    query refreshStatus ($eventID: ID!) {
+                                                        getEventStatus (eventID: $eventID) {
+                                                            error {
+                                                                code
+                                                                msg
+                                                            }
+                                                            eventID
+                                                            status
+                                                        }
+                                                    }`, { eventID: card.eventID }).then((response) => response.json()).then(resp => {
+                                                        if (resp.data) {
+                                                            if (resp.data.getEventStatus.error) {
+                                                                console.error(resp.data.getEventStatus.error.msg)
+                                                            } else {
+                                                                console.log(resp.data.getEventStatus)
+                                                                cards[idx].status = resp.data.getEventStatus.status
+                                                                updateState("refresh")(refresh + 1)
+                                                            }
+                                                        } else {
+                                                            console.error(resp)
+                                                            alert("Some thing went wrong")
+                                                        }
+                                                    }).catch((error) => {
+                                                        console.error(error)
+                                                        alert("Some thing went wrong")
+                                                    })
+                                                }}>
+                                                    <SyncIcon />
+                                                </IconButton>
+                                                <IconButton onClick={() => {
+                                                    userAPI.request(`
+                                                        mutation RemoveEvent ($eventID: ID!) {
+                                                            removeEvent(eventID: $eventID) {
+                                                                error {
+                                                                    code
+                                                                    msg
+                                                                }
+                                                                event {
+                                                                    eventID
+                                                                }
+                                                            }
+                                                        }
+                                                    `, {
+                                                        eventID: card.eventID
+                                                    }).then(r => r.json()).then(j => {
+                                                        if (j.data) {
+                                                            if (j.data.removeEvent.error) {
+                                                                console.error(j.data.removeEvent.error.msg)
+                                                            } else {
+                                                                var idx = cards.findIndex(card => (card.eventID === j.data.removeEvent.event.eventID));
+                                                                cards.splice(idx, 1)
+                                                                updateState("refresh")(refresh + 1)
+                                                            }
+                                                        } else {
+                                                            console.error(j)
+                                                            alert("Some thing went wrong")
+                                                        }
+                                                    }).catch((error) => {
+                                                        console.error(error)
+                                                    })
+                                                }}>
+                                                    <RemoveIcon />
+                                                </IconButton>
+                                            </ButtonGroup>
+                                        }
+                                    />
+                                    <Divider />
                                     <CardContent className={classes.cardContent}>
                                         <Typography gutterBottom variant="h5" component="h2">
                                             {card.name ? card.name : "Sometihings not right"}
                                         </Typography>
                                         <Typography gutterBottom variant="subtitle1" color="textSecondary">
-                                            {formatDate(card.startTime)} - {card.status}
+                                            {formatDate(card.startTime)} - {formatDate(card.endTime)}
                                         </Typography>
                                         <Typography>
-                                            {card.description.length > 50 ? card.description.substring(0, 50) + "..." : card.description}
+                                            {card.description}
                                         </Typography>
                                     </CardContent>
                                     <CardActions>
@@ -256,8 +337,82 @@ function Main(props) {
             </main>
             <EditEvent loadCallback={(callback) => {
                 editEvent = callback
-            }} onClose={() => {
-                updateState("showEE")(-1)
+            }} onSubmit={(event) => {
+                if (event.eventID) {
+                    userAPI.request(`
+                        mutation UpdateEvent($eventID: ID!, $event: InputEvent!) {
+                            updateEvent(eventID: $eventID, event: $event) {
+                                error {
+                                    code
+                                    msg
+                                }
+                                event {
+                                    eventID
+                                    name
+                                    description
+                                    startTime
+                                    endTime
+                                    status
+                                }
+                            }
+                        }
+                    `, {
+                        eventID: event.eventID, event: {
+                            name: event.name,
+                            description: event.description,
+                            startTime: event.startTime,
+                            endTime: event.endTime
+                        }
+                    }).then(r => r.json()).then(j => {
+                        if (j.data) {
+                            if (j.data.updateEvent.error) {
+                                console.error(j.data.updateEvent.error.msg)
+                            } else {
+                                var idx = cards.findIndex(card => (card.eventID === j.data.updateEvent.event.eventID));
+                                cards[idx] = j.data.updateEvent.event
+                                updateState("refresh")(refresh + 1)
+                            }
+                        } else {
+                            console.error(j)
+                            alert("Some thing went wrong")
+                        }
+                    }).catch((error) => {
+                        console.error(error)
+                    })
+                } else {
+                    userAPI.request(`
+                        mutation CreateEvent($event: InputEvent!) {
+                            createEvent(event: $event) {
+                                error {
+                                    code
+                                    msg
+                                }
+                                event {
+                                    eventID
+                                    name
+                                    description
+                                    startTime
+                                    endTime
+                                    status
+                                }
+                            }
+                        }
+                    `, { event }).then(r => r.json()).then(j => {
+                        if (j.data) {
+                            if (j.data.createEvent.error) {
+                                console.error(j.data.createEvent.error.msg)
+                            } else {
+                                cards.push(j.data.createEvent.event)
+                                updateState("refresh")(refresh + 1)
+                            }
+                        } else {
+                            console.error(j)
+                            alert("Some thing went wrong")
+                        }
+                    }).catch((error) => {
+                        console.error(error)
+                    })
+                }
             }} />
             <footer className={classes.footer}>
                 <Copyright />

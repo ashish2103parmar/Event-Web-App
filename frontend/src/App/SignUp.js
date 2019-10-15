@@ -100,7 +100,7 @@ function SignUp(props) {
                             variant="outlined"
                             margin="normal"
                             required
-                            fullWidth
+                            fullwidth
                             id="name"
                             label="Full Name"
                             name="name"

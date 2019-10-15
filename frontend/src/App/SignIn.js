@@ -87,6 +87,7 @@ function SignIn(props) {
                                 localStorage.setItem("sessionCredentials", JSON.stringify(resp.data.signin.credentials))
                                 console.log(resp.data.signin.credentials)
                                 props.history.push("/")
+                                window.location.reload()
                             }
                         } else {
                             console.error(resp)

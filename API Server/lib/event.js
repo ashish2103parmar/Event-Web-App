@@ -160,7 +160,7 @@ exports.listEvents = ({ nextToken, admin }, callback) => {
             ":s": {
                 S: "Approved"
             }
-        }: undefined,
+        } : undefined,
         FilterExpression: !admin ? "#s = :s" : undefined,
         ProjectionExpression: eventsDB.key + ", #n, description, start_timestamp, expire_timestamp, #s, organizer, email"
     }, (error, scanResult) => {
@@ -313,16 +313,17 @@ exports.removeEvent = ({ eventID, email, admin }, callback) => {
         },
         ReturnValues: "ALL_OLD",
         ConditionExpression: !admin ? "email = :e" : undefined,
-        ExpressionAttributeValues: {
+        ExpressionAttributeValues: !admin ? {
             ":e": {
                 S: email
             }
-        }
+        } : undefined
     }, (error, data) => {
         if (error) {
             if (error.code === "ConditionalCheckFailedException") {
                 callback({ error: new CustomException(CustomExceptionCodes.AccessDenied, "Access Denied") })
             } else {
+                console.log(error)
                 callback({ error: new CustomException(CustomExceptionCodes.UnknownError, "Removing Event Failed for Unknown Reason") })
             }
         } else {
