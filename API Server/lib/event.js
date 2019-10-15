@@ -117,7 +117,7 @@ exports.listUserEvents = ({ email, nextToken }, callback) => {
                 S: nextToken
             }
         } : undefined,
-        Limit: 20,
+        Limit: 20, // Limiting No of Scans per request (not Output), Change according to request
         ProjectionExpression: eventsDB.key + ", #n, description, start_timestamp, expire_timestamp, #s"
     }, (error, queryResult) => {
         if (error) {
@@ -151,7 +151,7 @@ exports.listEvents = ({ nextToken, admin }, callback) => {
                 S: nextToken
             }
         } : undefined,
-        Limit: 20,
+        Limit: 20,  // Limiting No of Scans per request (not Output )
         ExpressionAttributeNames: {
             "#n": "name",
             "#s": "status"
