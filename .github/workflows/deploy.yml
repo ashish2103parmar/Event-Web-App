@@ -20,7 +20,7 @@ jobs:
           aws-region: ap-south-1
       - name: Check out
         uses: actions/checkout@v1
-      - run: cd frontend
+      - run: cd Event-Web-App/frontend
       - name: Install Dependencies
         run: yarn install
       - name: Build
