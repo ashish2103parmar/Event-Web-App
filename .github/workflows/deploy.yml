@@ -20,18 +20,16 @@ jobs:
           aws-region: ap-south-1
       - name: Check out
         uses: actions/checkout@v1
-        with:
-          path: frontend
-      - run: ls
       - uses: actions/setup-node@v2
-        with:
-          cache: "yarn"
 
-      - name: Install Dependencies
-        run: yarn install
-      - name: Build
-        run: yarn build
+      #- name: Install Dependencies
+      #  run: yarn install
+      #- name: Build
+      #  run: yarn build
       #- run: aws s3 rm s3://${{env.s3-bucket}}/  --recursive
       - name: Upload to S3
         run: |
+          cd frontend
+          yarn install
+          yarn build
           aws s3 cp build  s3://${{env.s3-bucket}}/ --recursive
