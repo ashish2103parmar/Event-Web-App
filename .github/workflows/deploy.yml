@@ -20,9 +20,11 @@ jobs:
           aws-region: ap-south-1
       - name: Check out
         uses: actions/checkout@v1
+      - run: cd frontend
       - uses: actions/setup-node@v2
         with:
           cache: "yarn"
+
       - name: Install Dependencies
         run: yarn install
       - name: Build
